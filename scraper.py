@@ -27,14 +27,12 @@ def extract_next_links(url, resp):
 
     #url = requests.get(absoluteurl)
     
-    if(resp.status == 200): #if the URL has permission to be able to be scraped & has no other problems 
+    if (resp.status == 200): #if the URL has permission to be able to be scraped & has no other problems 
         soup = BeautifulSoup(resp.raw_response.content, 'html.parser' )
     
         for link in soup.find_all('a'):
             url = link.get('href')
             print(url)
-            # if url =='#':
-            #     print('123')
             if url not in crawled_links:
                 links.append(url)
     
