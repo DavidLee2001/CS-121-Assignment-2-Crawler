@@ -1,6 +1,9 @@
 import re
 from urllib.parse import urlparse, urldefrag
 
+from urllib.parse import urljoin
+from bs4 import BeautifulSoup
+
 def scraper(url, resp):
     links = extract_next_links(url, resp)
     return [urldefrag(link)[0] for link in links if is_valid(link)]
@@ -15,7 +18,41 @@ def extract_next_links(url, resp):
     #         resp.raw_response.url: the url, again
     #         resp.raw_response.content: the content of the page!
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
-    return list()
+    
+    #transform relative url to absolute url 
+    # -- using urljoin
+    
+    soup = BeautifulSoup(resp.raw_response.content, 'lxml' )
+    urls_list = []
+    
+    for link in soup.find_all('a'):
+        pass
+
+    #url = requests.get(absoluteurl)
+    
+    if(resp.status == 200): #if the URL has permission to be able to be scraped & has no other problems 
+        pass
+    
+    return urls_list
+
+    '''
+    links = []
+
+    beautifulSoup = BeautifulSoup(resp["content"], "lxml")
+    aTags = beautifulSoup.find_all("a")
+            
+    try:
+        baseURL = resp["url"]
+        
+        for link in aTags:
+            relativeURL = link.attrs["href"]
+            absoluteURL = urljoin(baseURL, relativeURL)
+            links.append(absoluteURL)   
+    except KeyError:
+        pass
+
+    return links
+    '''
 
 def is_valid(url):
     # Decide whether to crawl this url or not. 
