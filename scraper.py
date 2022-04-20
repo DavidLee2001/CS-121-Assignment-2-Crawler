@@ -1,9 +1,9 @@
 import re
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urldefrag
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
-    return [link for link in links if is_valid(link)]
+    return [urldefrag(link)[0] for link in links if is_valid(link)]
 
 def extract_next_links(url, resp):
     # Implementation required.
@@ -21,10 +21,30 @@ def is_valid(url):
     # Decide whether to crawl this url or not. 
     # If you decide to crawl it, return True; otherwise return False.
     # There are already some conditions that return False.
+
+    # *.ics.uci.edu/*
+    # *.cs.uci.edu/*
+    # *.informatics.uci.edu/*
+    # *.stat.uci.edu/*
+    # today.uci.edu/department/information_computer_sciences/*
+
     try:
         parsed = urlparse(url)
         if parsed.scheme not in set(["http", "https"]):
             return False
+        
+        # Added code
+        if parsed.hostname not in set(["ics.uci.edu", "cs.uci.edu", 
+        "informatics.uci.edu", "stat.uci.edu", "today.uci.edu"]):
+
+            domain = parsed.hostname.split('.')[1:].join('.')
+            if domain not in set(["ics.uci.edu", "cs.uci.edu", 
+            "informatics.uci.edu", "stat.uci.edu", "today.uci.edu"]):
+                return False
+        
+        if parsed.hostname == 'today.uci.edu' and parsed.path != '/department/information_computer_sciences':
+            return False
+
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
             + r"|png|tiff?|mid|mp2|mp3|mp4"
