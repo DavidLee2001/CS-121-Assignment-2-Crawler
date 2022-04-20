@@ -1,8 +1,9 @@
 import re
 from urllib.parse import urlparse, urldefrag
-
-from urllib.parse import urljoin
 from bs4 import BeautifulSoup
+
+crawled_links = set()
+
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
@@ -20,39 +21,25 @@ def extract_next_links(url, resp):
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
     
     #transform relative url to absolute url 
-    # -- using urljoin
+    # -- using urljoin    
     
-    soup = BeautifulSoup(resp.raw_response.content, 'lxml' )
-    urls_list = []
-    
-    for link in soup.find_all('a'):
-        pass
+    links = []
 
     #url = requests.get(absoluteurl)
     
     if(resp.status == 200): #if the URL has permission to be able to be scraped & has no other problems 
-        pass
+        soup = BeautifulSoup(resp.raw_response.content, 'html.parser' )
     
-    return urls_list
-
-    '''
-    links = []
-
-    beautifulSoup = BeautifulSoup(resp["content"], "lxml")
-    aTags = beautifulSoup.find_all("a")
-            
-    try:
-        baseURL = resp["url"]
-        
-        for link in aTags:
-            relativeURL = link.attrs["href"]
-            absoluteURL = urljoin(baseURL, relativeURL)
-            links.append(absoluteURL)   
-    except KeyError:
-        pass
-
+        for link in soup.find_all('a'):
+            url = link.get('href')
+            print(url)
+            # if url =='#':
+            #     print('123')
+            if url not in crawled_links:
+                links.append(url)
+    
     return links
-    '''
+
 
 def is_valid(url):
     # Decide whether to crawl this url or not. 
@@ -64,6 +51,7 @@ def is_valid(url):
     # *.informatics.uci.edu/*
     # *.stat.uci.edu/*
     # today.uci.edu/department/information_computer_sciences/*
+    
 
     try:
         parsed = urlparse(url)
@@ -74,7 +62,7 @@ def is_valid(url):
         if parsed.hostname not in set(["ics.uci.edu", "cs.uci.edu", 
         "informatics.uci.edu", "stat.uci.edu", "today.uci.edu"]):
 
-            domain = parsed.hostname.split('.')[1:].join('.')
+            domain = '.'.join(parsed.hostname.split('.')[1:])
             if domain not in set(["ics.uci.edu", "cs.uci.edu", 
             "informatics.uci.edu", "stat.uci.edu", "today.uci.edu"]):
                 return False
@@ -93,5 +81,6 @@ def is_valid(url):
             + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
 
     except TypeError:
-        print ("TypeError for ", parsed)
-        raise
+        # print ("TypeError for ", parsed)
+        # raise
+        pass
