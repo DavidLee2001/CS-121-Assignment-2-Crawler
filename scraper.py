@@ -1,13 +1,21 @@
 import re
 from urllib.parse import urlparse, urldefrag
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Comment
 
 crawled_links = set()
+query = set()
+bad_links = set()
+
 
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
+    for link in links:
+        if is_valid(link):
+            print(link)
+
     return [urldefrag(link)[0] for link in links if is_valid(link)]
+
 
 def extract_next_links(url, resp):
     # Implementation required.
@@ -21,22 +29,68 @@ def extract_next_links(url, resp):
     # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
     
     #transform relative url to absolute url 
-    # -- using urljoin    
+    # -- using urljoin
+
     
+    if resp.status != 200 and url in crawled_links:
+        bad_links.add(url)
+        return list()
+    
+    if (resp.raw_response == None):
+        bad_links.add(url)
+        return list()
+    
+    urls = set()
+
+    soup = BeautifulSoup(resp.raw_response.content, 'lxml')
+    for tag in soup(content = lambda content: isinstance(content, Comment)):
+        tag.extract()
+    
+    for elem in soup.findAll(['script', 'style']):
+        elem.extract()
+    
+    text = soup.get_text()
+    text = re.sub('\s+', ' ', text)
+
+    # tokenize it
+
+    for link in soup.find_all('a'):
+        child = link.get('href')
+        if is_valid(child) and child not in crawled_links:
+            if '#' in child:
+                child = child.split('#')[0]
+            urls.add(child)
+            crawled_links.add(child)
+    
+    return list(urls)
+
+    
+    '''
     links = []
 
     #url = requests.get(absoluteurl)
     
-    if (resp.status == 200): #if the URL has permission to be able to be scraped & has no other problems 
+    if(resp.status == 200): #if the URL has permission to be able to be scraped & has no other problems 
         soup = BeautifulSoup(resp.raw_response.content, 'html.parser' )
     
         for link in soup.find_all('a'):
-            url = link.get('href')
-            print(url)
-            if url not in crawled_links:
+            #if(link != None):
+            
+            # if(resp.raw_response.content != None): #if there is content, might need to go in another place
+            
+            # still not crawling
+            link = link.get('href')
+            #if (link != '#'):
+            newUrl = urljoin(url, link)
+            crawled_links.add(newUrl)
+            #print(url)
+            # if url =='#':
+            #     print('123')
+            if newUrl not in crawled_links:
                 links.append(url)
     
     return links
+    '''
 
 
 def is_valid(url):
