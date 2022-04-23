@@ -1,96 +1,104 @@
 import re
 from urllib.parse import urlparse, urldefrag
-from bs4 import BeautifulSoup, Comment
+from bs4 import BeautifulSoup
+from simhash import Simhash
+
 
 crawled_links = set()
 query = set()
 bad_links = set()
+content = []
 
+simhash_set = set()
+
+
+def tokenize(text):
+    tokens = []
+    lines = text.split('\n')
+    for line in lines:
+        for word in re.split(r'\W+', line):
+            if word.isalnum() and word.isascii() and word != '':
+                tokens.append(word.lower())
+    return tokens
 
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
-    for link in links:
-        if is_valid(link):
-            print(link)
-
-    return [urldefrag(link)[0] for link in links if is_valid(link)]
-
+    return links
 
 def extract_next_links(url, resp):
-    # Implementation required.
-    # url: the URL that was used to get the page
-    # resp.url: the actual url of the page
-    # resp.status: the status code returned by the server. 200 is OK, you got the page. Other numbers mean that there was some kind of problem.
-    # resp.error: when status is not 200, you can check the error here, if needed.
-    # resp.raw_response: this is where the page actually is. More specifically, the raw_response has two parts:
-    #         resp.raw_response.url: the url, again
-    #         resp.raw_response.content: the content of the page!
-    # Return a list with the hyperlinks (as strings) scrapped from resp.raw_response.content
-    
-    #transform relative url to absolute url 
-    # -- using urljoin
-
-    
-    if resp.status != 200 and url in crawled_links:
+    if resp.status != 200 or url in crawled_links:
         bad_links.add(url)
         return list()
     
-    if (resp.raw_response == None):
+    if (resp.raw_response == None):     
         bad_links.add(url)
         return list()
     
     urls = set()
 
     soup = BeautifulSoup(resp.raw_response.content, 'lxml')
-    for tag in soup(content = lambda content: isinstance(content, Comment)):
-        tag.extract()
-    
-    for elem in soup.findAll(['script', 'style']):
-        elem.extract()
-    
-    text = soup.get_text()
-    text = re.sub('\s+', ' ', text)
 
-    # tokenize it
+    if(soup.body != None):
+        if(len(soup.get_text()) < 300 ): #filters out websites with low amount of text 
+            bad_links.add(url)
+    else:
+        bad_links.add(url)
 
-    for link in soup.find_all('a'):
-        child = link.get('href')
-        if is_valid(child) and child not in crawled_links:
-            if '#' in child:
-                child = child.split('#')[0]
-            urls.add(child)
-            crawled_links.add(child)
+    #hash the current url's text -> commenting out to test calander trap
+  #  url_hash = Simhash(soup.getText())
+    #store the hash 
     
+   # if( len(content) == 0): #add website to first position if there's no other website
+   #     content[0] = url_hash
+   # elif (len(content) == 1): #if there's already a website in "previous website", add it to the second position
+   #     content[1] = url_hash
+   # elif (len(content) == 2): #if there's two websites stored alr, move the second website to the "previous website" slot & put the current website in the "current websote" slot
+   #     content[0] = content[1]
+    #    content[1] = url_hash
+
+    
+    
+    # duplicates function are below
+    
+
+
+    # /ref/
+    # https://github.com/1e0ng/simhash
+    # https://leons.im/posts/a-python-implementation-of-simhash-algorithm/
+    # https://github.com/memosstilvi/simhash/blob/master/simhash.py
+    # https://support.archive-it.org/hc/en-us/articles/208332963-Modify-crawl-scope-with-a-Regular-Expression
+
+
+
+    print("Main URL:", url)
+    
+    if resp.raw_response.content != None:  # need testing
+        for link in soup.find_all('a'):
+            child = link.get('href')
+            # might need change relative --> absolute url
+            
+            child = urldefrag(child)[0]
+
+            # if dup shove it in bad_links            
+            # hashValue = Simhash()               
+            # if not is_Exact_Duplicate(hashValue):
+            #     # check for near duplicate
+            #     if is_Near_Duplicate(hashValue):
+            #         return list()
+
+            # --
+                
+
+            if child != None and is_valid(child) and child not in crawled_links and child not in bad_links:
+                print("\tFound URL:", child)                            
+                urls.add(child)
+                crawled_links.add(child)
+
+    print()
+
     return list(urls)
 
-    
-    '''
-    links = []
-
-    #url = requests.get(absoluteurl)
-    
-    if(resp.status == 200): #if the URL has permission to be able to be scraped & has no other problems 
-        soup = BeautifulSoup(resp.raw_response.content, 'html.parser' )
-    
-        for link in soup.find_all('a'):
-            #if(link != None):
-            
-            # if(resp.raw_response.content != None): #if there is content, might need to go in another place
-            
-            # still not crawling
-            link = link.get('href')
-            #if (link != '#'):
-            newUrl = urljoin(url, link)
-            crawled_links.add(newUrl)
-            #print(url)
-            # if url =='#':
-            #     print('123')
-            if newUrl not in crawled_links:
-                links.append(url)
-    
-    return links
-    '''
 
 
 def is_valid(url):
@@ -103,14 +111,15 @@ def is_valid(url):
     # *.informatics.uci.edu/*
     # *.stat.uci.edu/*
     # today.uci.edu/department/information_computer_sciences/*
-    
 
     try:
+
         parsed = urlparse(url)
+        if parsed is None or parsed.hostname is None:
+            return False
         if parsed.scheme not in set(["http", "https"]):
             return False
         
-        # Added code
         if parsed.hostname not in set(["ics.uci.edu", "cs.uci.edu", 
         "informatics.uci.edu", "stat.uci.edu", "today.uci.edu"]):
 
@@ -121,6 +130,13 @@ def is_valid(url):
         
         if parsed.hostname == 'today.uci.edu' and parsed.path != '/department/information_computer_sciences':
             return False
+
+        #blocking URls with repeating directories & calanders
+        if re.match("^.*?(/.+?/).*?\1.*$|^.*?/(.+?/)\2.*$",parsed.path.lower()) or re.match("^.*calendar.*$",parsed.path.lower()):
+            return False
+
+    
+        
 
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
@@ -136,3 +152,22 @@ def is_valid(url):
         # print ("TypeError for ", parsed)
         # raise
         pass
+
+
+# check duplications
+
+def is_Exact_Duplicate(hashVal):
+    if hashVal in simhash_set:
+        return True
+
+    simhash_set.add(hashVal)            
+
+
+    return False
+
+
+# ahh but then. we need to pass the set as well
+# ohhhh. we can keep the set over there. 
+
+# def is_Near_Duplicate(hashVal):
+    
