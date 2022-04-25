@@ -6,6 +6,10 @@ from utils.config import Config
 from crawler import Crawler
 
 
+# Report
+import scraper
+
+
 def main(config_file, restart):
     cparser = ConfigParser()
     cparser.read(config_file)
@@ -21,3 +25,21 @@ if __name__ == "__main__":
     parser.add_argument("--config_file", type=str, default="config.ini")
     args = parser.parse_args()
     main(args.config_file, args.restart)
+
+    
+    # Report - 1
+    print(f'\n\n\nNumber of unique pages found: {len(scraper.crawled_links)}\n\n')
+
+    # Report - 2
+    print(f'Longest page: {scraper.longestPage}\nWord count: {scraper.longestPageWordCount}\n\n')
+    
+    # Report - 3
+    print('50 most common words')
+    for word, count in sorted(scraper.allWords.items(), key=lambda item: -item[1]):
+        print(f'{word} - {count}')
+    print('\n\n')
+
+    # Report - 4
+    print("Subdomains in the 'ics.uci.edu domain'")
+    for domain, urls in sorted(scraper.subdomains.items(), key=lambda item: item[0]):
+        print(f'{domain}, {len(urls)}')

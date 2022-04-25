@@ -1,15 +1,33 @@
 import re
 from urllib.parse import urlparse, urldefrag
 from bs4 import BeautifulSoup
-from simhash import Simhash
+from simhash import Simhash,SimhashIndex
 
+near_dup_threshold = 3
 
 crawled_links = set()
-query = set()
 bad_links = set()
-content = []
 
 simhash_set = set()
+
+# (id, simhash)
+data = dict()
+
+
+
+# Report - 2
+longestPage = ''
+longestPageWordCount = 0
+
+# Report - 3
+allWords = dict()
+
+stopWords = {"a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "aren't", "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", "can't", "cannot", "could", "couldn't", "did", "didn't", "do", "does", "doesn't", "doing", "don't", "down", "during", "each", "few", "for", "from", "further", "had", "hadn't", "has", "hasn't", "have", "haven't", "having", "he", "he'd", "he'll", "he's", "her", "here", "here's", "hers", "herself", "him", "himself", "his", "how", "how's", "i", "i'd", "i'll", "i'm", "i've", "if", "in", "into", "is", "isn't", "it", "it's", "its", "itself", "let's", "me", "more", "most", "mustn't", "my", "myself", "no", "nor", "not", "of", "off", "on", "once", "only", "or", "other", "ought", "our", "ours", "ourselves", "out", "over", "own", "same", "shan't", "she", "she'd", "she'll", "she's", "should", "shouldn't", "so", "some", "such", "than", "that", "that's", "the", "their", "theirs", "them", "themselves", "then", "there", "there's", "these", "they", "they'd", "they'll", "they're", "they've", "this", "those", "through", "to", "too", "under", "until", "up", "very", "was", "wasn't", "we", "we'd", "we'll", "we're", "we've", "were", "weren't", "what", "what's", "when", "when's", "where", "where's", "which", "while", "who", "who's", "whom", "why", "why's", "with", "won't", "would", "wouldn't", "you", "you'd", "you'll", "you're", "you've", "your", "yours", "yourself", "yourselves"}
+
+
+# Report - 4
+subdomains = dict()
+
 
 
 def tokenize(text):
@@ -24,9 +42,17 @@ def tokenize(text):
 
 def scraper(url, resp):
     links = extract_next_links(url, resp)
-    return links
+    res = []
+
+    for link in links:
+        if is_valid(link):
+            res.append(link)
+            #print("\tFound URL:", link)
+
+    return res
 
 def extract_next_links(url, resp):
+    
     if resp.status != 200 or url in crawled_links:
         bad_links.add(url)
         return list()
@@ -34,66 +60,73 @@ def extract_next_links(url, resp):
     if (resp.raw_response == None):     
         bad_links.add(url)
         return list()
-    
-    urls = set()
 
     soup = BeautifulSoup(resp.raw_response.content, 'lxml')
+    parsed = urlparse(url)
+    
+    words = tokenize(soup.get_text())
+    hashVal = Simhash(words)
+    
+
+    # domain_path = parsed.scheme + '/' + parsed.netloc + '/' + parsed.hostname + parsed.path
+    # print(domain_path)
+
+    if is_exact_dup(hashVal):
+        # domain + path
+        domain_path = parsed.scheme + parsed.hostname + parsed.path
+        bad_links.add(domain_path)
+        return list()
+    
+    if is_near_dup(hashVal):
+        domain_path = parsed.scheme + parsed.hostname + parsed.path
+        bad_links.add(domain_path)
+        return list()
+
+    # A unique link --> add to simhash_set()
+    simhash_set.add(hashVal.value)
+    data[str(hashVal.value)] = hashVal
 
     if(soup.body != None):
-        if(len(soup.get_text()) < 300 ): #filters out websites with low amount of text 
+        if (len(soup.get_text()) < 300): #filters out websites with low amount of text 
+            print("Low text URL: ", )
             bad_links.add(url)
+            # return list()
     else:
         bad_links.add(url)
 
-    #hash the current url's text -> commenting out to test calander trap
-  #  url_hash = Simhash(soup.getText())
-    #store the hash 
+
+    # Report - 2
+    global longestPage, longestPageWordCount
+    if len(words) > longestPageWordCount:
+        longestPage = url
+        longestPageWordCount = len(words)
     
-   # if( len(content) == 0): #add website to first position if there's no other website
-   #     content[0] = url_hash
-   # elif (len(content) == 1): #if there's already a website in "previous website", add it to the second position
-   #     content[1] = url_hash
-   # elif (len(content) == 2): #if there's two websites stored alr, move the second website to the "previous website" slot & put the current website in the "current websote" slot
-   #     content[0] = content[1]
-    #    content[1] = url_hash
-
-    
-    
-    # duplicates function are below
+    # Report - 3
+    global allWords
+    for word in words:
+        if word not in stopWords:
+            if word not in allWords:
+                allWords[word] = 0
+            allWords[word] = allWords[word] + 1
     
 
+  
+    print("\tMain URL:", url)
 
-    # /ref/
-    # https://github.com/1e0ng/simhash
-    # https://leons.im/posts/a-python-implementation-of-simhash-algorithm/
-    # https://github.com/memosstilvi/simhash/blob/master/simhash.py
-    # https://support.archive-it.org/hc/en-us/articles/208332963-Modify-crawl-scope-with-a-Regular-Expression
+    urls = set()
 
-
-
-    print("Main URL:", url)
-    
     if resp.raw_response.content != None:  # need testing
         for link in soup.find_all('a'):
             child = link.get('href')
-            # might need change relative --> absolute url
             
             child = urldefrag(child)[0]
 
-            # if dup shove it in bad_links            
-            # hashValue = Simhash()               
-            # if not is_Exact_Duplicate(hashValue):
-            #     # check for near duplicate
-            #     if is_Near_Duplicate(hashValue):
-            #         return list()
 
-            # --
-                
-
-            if child != None and is_valid(child) and child not in crawled_links and child not in bad_links:
-                print("\tFound URL:", child)                            
+            if child != None and child not in crawled_links and child not in bad_links:                            
                 urls.add(child)
                 crawled_links.add(child)
+            else:
+                bad_links.add(child)
 
     print()
 
@@ -127,9 +160,16 @@ def is_valid(url):
             if domain not in set(["ics.uci.edu", "cs.uci.edu", 
             "informatics.uci.edu", "stat.uci.edu", "today.uci.edu"]):
                 return False
-        
+            elif domain == 'ics.uci.edu':
+                if domain not in subdomains:
+                    subdomains[domain] = set()
+                subdomains[domain].add(url)
+            
         if parsed.hostname == 'today.uci.edu' and parsed.path != '/department/information_computer_sciences':
             return False
+
+        # if parsed.path in bad_paths:
+        #     return False
 
         #blocking URls with repeating directories & calanders
         if re.match("^.*?(/.+?/).*?\1.*$|^.*?/(.+?/)\2.*$",parsed.path.lower()) or re.match("^.*calendar.*$",parsed.path.lower()):
@@ -155,19 +195,26 @@ def is_valid(url):
 
 
 # check duplications
-
-def is_Exact_Duplicate(hashVal):
-    if hashVal in simhash_set:
+def is_exact_dup(hashVal):
+    if hashVal.value in simhash_set:
         return True
-
-    simhash_set.add(hashVal)            
-
 
     return False
 
 
-# ahh but then. we need to pass the set as well
-# ohhhh. we can keep the set over there. 
+def is_near_dup(hashVal):
+    # Need to store data in dict to use simhash index
+    index = SimhashIndex([(k, v) for k, v in data.items()])
+    # near_dup_threshold returns a list of keys in data that are near duplicates
+    dups = index.get_near_dups(hashVal)
+    if(len(dups) > near_dup_threshold):
+        return True
 
-# def is_Near_Duplicate(hashVal):
-    
+
+
+
+# /ref/
+# https://github.com/1e0ng/simhash
+# https://leons.im/posts/a-python-implementation-of-simhash-algorithm/
+# https://github.com/memosstilvi/simhash/blob/master/simhash.py
+# https://support.archive-it.org/hc/en-us/articles/208332963-Modify-crawl-scope-with-a-Regular-Expression
