@@ -41,15 +41,7 @@ def tokenize(text):
 
 
 def scraper(url, resp):
-    links = extract_next_links(url, resp)
-    res = []
-
-    for link in links:
-        if is_valid(link):
-            res.append(link)
-            #print("\tFound URL:", link)
-
-    return res
+    return extract_next_links(url, resp)
 
 def extract_next_links(url, resp):
     
@@ -122,7 +114,7 @@ def extract_next_links(url, resp):
             child = urldefrag(child)[0]
 
 
-            if child != None and child not in crawled_links and child not in bad_links:                            
+            if child != None and is_valid(child) and child not in crawled_links and child not in bad_links:                            
                 urls.add(child)
                 crawled_links.add(child)
             else:
