@@ -4,15 +4,11 @@ from bs4 import BeautifulSoup
 from simhash import Simhash,SimhashIndex
 
 near_dup_threshold = 3
-
 crawled_links = set()
 bad_links = set()
-
 simhash_set = set()
-
 # (id, simhash)
 data = dict()
-
 
 
 # Report - 2
@@ -44,45 +40,35 @@ def scraper(url, resp):
     return extract_next_links(url, resp)
 
 def extract_next_links(url, resp):
-    
-    if resp.status != 200 or url in crawled_links:
+    if resp.status != 200 or url in crawled_links:  # url with status != 200 and already crawled is excluded
         bad_links.add(url)
-        return list()
+        return list()       # return with an empty list() to not crawl this url
     
-    if (resp.raw_response == None):     
+    if (resp.raw_response == None):     # no response. Stop crawl this url
         bad_links.add(url)
         return list()
 
     soup = BeautifulSoup(resp.raw_response.content, 'lxml')
-    parsed = urlparse(url)
+    #parsed = urlparse(url)
     
     words = tokenize(soup.get_text())
-    hashVal = Simhash(words)
+    hashVal = Simhash(words)            # for checking duplicated content
     
-
-    # domain_path = parsed.scheme + '/' + parsed.netloc + '/' + parsed.hostname + parsed.path
-    # print(domain_path)
-
     if is_exact_dup(hashVal):
-        # domain + path
-        domain_path = parsed.scheme + parsed.hostname + parsed.path
-        bad_links.add(domain_path)
         return list()
     
     if is_near_dup(hashVal):
-        domain_path = parsed.scheme + parsed.hostname + parsed.path
-        bad_links.add(domain_path)
         return list()
 
-    # A unique link --> add to simhash_set()
+    # A unique link (content is not duplicated) --> add to simhash_set()
     simhash_set.add(hashVal.value)
     data[str(hashVal.value)] = hashVal
 
     if(soup.body != None):
         if (len(soup.get_text()) < 300): #filters out websites with low amount of text 
-            print("Low text URL: ", )
             bad_links.add(url)
-            # return list()
+            # No scraping low content website
+            return list()
     else:
         bad_links.add(url)
 
@@ -101,13 +87,11 @@ def extract_next_links(url, resp):
                 allWords[word] = 0
             allWords[word] = allWords[word] + 1
     
-
-  
     print("\tMain URL:", url)
 
     urls = set()
 
-    if resp.raw_response.content != None:  # need testing
+    if resp.raw_response.content != None:
         for link in soup.find_all('a'):
             child = link.get('href')
             
@@ -119,7 +103,6 @@ def extract_next_links(url, resp):
                 crawled_links.add(child)
             else:
                 bad_links.add(child)
-
     print()
 
     return list(urls)
@@ -145,30 +128,28 @@ def is_valid(url):
         if parsed.scheme not in set(["http", "https"]):
             return False
         
+        if parsed.hostname == 'today.uci.edu' and parsed.path != '/department/information_computer_sciences':
+            return False
+
+        if parsed.hostname is "evoke.ics.uci.edu":
+            return False
+
         if parsed.hostname not in set(["ics.uci.edu", "cs.uci.edu", 
         "informatics.uci.edu", "stat.uci.edu", "today.uci.edu"]):
 
             domain = '.'.join(parsed.hostname.split('.')[1:])
-            if domain not in set(["ics.uci.edu", "cs.uci.edu", 
-            "informatics.uci.edu", "stat.uci.edu", "today.uci.edu"]):
-                return False
-            elif domain == 'ics.uci.edu':
-                if domain not in subdomains:
-                    subdomains[domain] = set()
-                subdomains[domain].add(url)
-            
-        if parsed.hostname == 'today.uci.edu' and parsed.path != '/department/information_computer_sciences':
-            return False
 
-        # if parsed.path in bad_paths:
-        #     return False
+            if domain is "evoke.ics.uci.edu":
+                return False
+
+            if domain not in set(["ics.uci.edu", "cs.uci.edu", 
+                "informatics.uci.edu", "stat.uci.edu", "today.uci.edu"]):
+                return False
+
 
         #blocking URls with repeating directories & calanders
         if re.match("^.*?(/.+?/).*?\1.*$|^.*?/(.+?/)\2.*$",parsed.path.lower()) or re.match("^.*calendar.*$",parsed.path.lower()):
             return False
-
-    
-        
 
         return not re.match(
             r".*\.(css|js|bmp|gif|jpe?g|ico"
