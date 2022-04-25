@@ -35,7 +35,11 @@ if __name__ == "__main__":
     
     # Report - 3
     print('50 most common words')
+    counter = 0
     for word, count in sorted(scraper.allWords.items(), key=lambda item: -item[1]):
+        if counter >= 50:
+            break
+        counter += 1
         print(f'{word} - {count}')
     print('\n\n')
 

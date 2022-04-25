@@ -202,7 +202,7 @@ def is_near_dup(hashVal):
     if(len(dups) > near_dup_threshold):
         return True
 
-
+    return False
 
 
 # /ref/
