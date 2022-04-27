@@ -1,15 +1,18 @@
+from ast import parse
 import re
 from urllib.parse import urlparse, urldefrag
 from bs4 import BeautifulSoup
 from simhash import Simhash,SimhashIndex
 
-near_dup_threshold = 3
+near_dup_threshold = 10
 crawled_links = set()
 bad_links = set()
 simhash_set = set()
 # (id, simhash)
 data = dict()
 
+# a threshold for maximum links would be scraped from a page
+max_links = 20
 
 # Report - 2
 longestPage = ''
@@ -40,7 +43,7 @@ def scraper(url, resp):
     return extract_next_links(url, resp)
 
 def extract_next_links(url, resp):
-    if resp.status != 200 or url in crawled_links:  # url with status != 200 and already crawled is excluded
+    if resp.status != 200 or url in crawled_links:  # url with status != 200 or is already crawled is excluded
         bad_links.add(url)
         return list()       # return with an empty list() to not crawl this url
     
@@ -48,24 +51,24 @@ def extract_next_links(url, resp):
         bad_links.add(url)
         return list()
 
-    soup = BeautifulSoup(resp.raw_response.content, 'lxml')
+    soup = BeautifulSoup(resp.raw_response.content, 'lxml') 
     #parsed = urlparse(url)
     
     words = tokenize(soup.get_text())
-    hashVal = Simhash(words)            # for checking duplicated content
+    simhashObject = Simhash(words)            # for checking duplicated content
     
-    if is_exact_dup(hashVal):
+    if is_exact_dup(simhashObject):
         return list()
     
-    if is_near_dup(hashVal):
+    if is_near_dup(simhashObject):
         return list()
 
     # A unique link (content is not duplicated) --> add to simhash_set()
-    simhash_set.add(hashVal.value)
-    data[str(hashVal.value)] = hashVal
+    simhash_set.add(simhashObject.value)
+    data[str(simhashObject.value)] = simhashObject
 
     if(soup.body != None):
-        if (len(soup.get_text()) < 300): #filters out websites with low amount of text 
+        if (len(soup.get_text()) < 300): # filters out websites with low amount of text 
             bad_links.add(url)
             # No scraping low content website
             return list()
@@ -89,24 +92,28 @@ def extract_next_links(url, resp):
     
     print("\tMain URL:", url)
 
-    urls = set()
+    urls = set()    # set of scraped links from this url
 
     if resp.raw_response.content != None:
+        # num_links = 0
         for link in soup.find_all('a'):
             child = link.get('href')
             
             child = urldefrag(child)[0]
 
-
-            if child != None and is_valid(child) and child not in crawled_links and child not in bad_links:                            
+            # checking if the scraped link is valid, in crawled links/bad links
+            if child != None and is_valid(child) and child not in crawled_links and child not in bad_links:     
+                # if num_links <= max_links :                        
                 urls.add(child)
                 crawled_links.add(child)
+                # num_links++
+                # else 
+                #   break;
             else:
                 bad_links.add(child)
     print()
 
     return list(urls)
-
 
 
 def is_valid(url):
@@ -121,30 +128,27 @@ def is_valid(url):
     # today.uci.edu/department/information_computer_sciences/*
 
     try:
-
         parsed = urlparse(url)
         if parsed is None or parsed.hostname is None:
             return False
+        
         if parsed.scheme not in set(["http", "https"]):
             return False
+
+        if not re.match('.*\.ics\.uci\.edu',  parsed.hostname)\
+            or not re.match('.*\.cs\.uci\.edu',  parsed.hostname) \
+            or not re.match('.*\.informatics\.uci\.edu',  parsed.hostname) \
+            or not re.match('.*\.stat\.uci\.edu',  parsed.hostname) \
+            or (parsed.hostname == 'today.uci.edu' \
+                and not re.match('department/information_computer_sciences(/.*)?', parsed.path)):
+            return False
         
-        if parsed.hostname == 'today.uci.edu' and parsed.path != '/department/information_computer_sciences':
-            return False
 
-        if parsed.hostname is "evoke.ics.uci.edu":
-            return False
-
-        if parsed.hostname not in set(["ics.uci.edu", "cs.uci.edu", 
-        "informatics.uci.edu", "stat.uci.edu", "today.uci.edu"]):
-
-            domain = '.'.join(parsed.hostname.split('.')[1:])
-
-            if domain is "evoke.ics.uci.edu":
-                return False
-
-            if domain not in set(["ics.uci.edu", "cs.uci.edu", 
-                "informatics.uci.edu", "stat.uci.edu", "today.uci.edu"]):
-                return False
+        # Report - 4
+        if re.match('.*\.ics\.uci\.edu', parsed.hostname):
+            if parsed.hostname not in subdomains:
+                subdomains[parsed.hostname] = 0
+            subdomains[parsed.hostname] = subdomains[parsed.hostname] + 1
 
 
         #blocking URls with repeating directories & calanders
@@ -168,21 +172,27 @@ def is_valid(url):
 
 
 # check duplications
-def is_exact_dup(hashVal):
-    if hashVal.value in simhash_set:
+def is_exact_dup(simhashObject):
+    if simhashObject.value in simhash_set:
         return True
 
     return False
 
 
-def is_near_dup(hashVal):
-    # Need to store data in dict to use simhash index
-    index = SimhashIndex([(k, v) for k, v in data.items()])
-    # near_dup_threshold returns a list of keys in data that are near duplicates
-    dups = index.get_near_dups(hashVal)
-    if(len(dups) > near_dup_threshold):
-        return True
+def is_near_dup(simhashObject):
+    # Simhash Index
+    # # Need to store data in dict to use simhash index
+    # index = SimhashIndex([(k, v) for k, v in data.items()])
+    # # near_dup_threshold returns a list of keys in data that are near duplicates
+    # dups = index.get_near_dups(hashVal)
+    # if(len(dups) > near_dup_threshold):
+    #     return True
 
+
+    # Distance
+    for value in data.values():
+        if value.distance(simhashObject) < near_dup_threshold:
+            return True
     return False
 
 

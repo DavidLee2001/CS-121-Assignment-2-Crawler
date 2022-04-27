@@ -44,6 +44,6 @@ if __name__ == "__main__":
     print('\n\n')
 
     # Report - 4
-    print("Subdomains in the 'ics.uci.edu domain'")
+    print(f"A total number of subdomains in the 'ics.uci.edu domain': {len(scraper.subdomains)}")
     for domain, urls in sorted(scraper.subdomains.items(), key=lambda item: item[0]):
-        print(f'{domain}, {len(urls)}')
+        print(f'\t{domain}, {len(urls)}')
