@@ -1,8 +1,8 @@
-from ast import parse
 import re
-from urllib.parse import urlparse, urldefrag
+from urllib.parse import urlparse, urldefrag, urljoin
 from bs4 import BeautifulSoup
-from simhash import Simhash,SimhashIndex
+from simhash import Simhash
+
 
 near_dup_threshold = 10
 crawled_links = set()
@@ -11,8 +11,6 @@ simhash_set = set()
 # (id, simhash)
 data = dict()
 
-# a threshold for maximum links would be scraped from a page
-max_links = 20
 
 # Report - 2
 longestPage = ''
@@ -20,9 +18,7 @@ longestPageWordCount = 0
 
 # Report - 3
 allWords = dict()
-
 stopWords = {"a", "about", "above", "after", "again", "against", "all", "am", "an", "and", "any", "are", "aren't", "as", "at", "be", "because", "been", "before", "being", "below", "between", "both", "but", "by", "can't", "cannot", "could", "couldn't", "did", "didn't", "do", "does", "doesn't", "doing", "don't", "down", "during", "each", "few", "for", "from", "further", "had", "hadn't", "has", "hasn't", "have", "haven't", "having", "he", "he'd", "he'll", "he's", "her", "here", "here's", "hers", "herself", "him", "himself", "his", "how", "how's", "i", "i'd", "i'll", "i'm", "i've", "if", "in", "into", "is", "isn't", "it", "it's", "its", "itself", "let's", "me", "more", "most", "mustn't", "my", "myself", "no", "nor", "not", "of", "off", "on", "once", "only", "or", "other", "ought", "our", "ours", "ourselves", "out", "over", "own", "same", "shan't", "she", "she'd", "she'll", "she's", "should", "shouldn't", "so", "some", "such", "than", "that", "that's", "the", "their", "theirs", "them", "themselves", "then", "there", "there's", "these", "they", "they'd", "they'll", "they're", "they've", "this", "those", "through", "to", "too", "under", "until", "up", "very", "was", "wasn't", "we", "we'd", "we'll", "we're", "we've", "were", "weren't", "what", "what's", "when", "when's", "where", "where's", "which", "while", "who", "who's", "whom", "why", "why's", "with", "won't", "would", "wouldn't", "you", "you'd", "you'll", "you're", "you've", "your", "yours", "yourself", "yourselves"}
-
 
 # Report - 4
 subdomains = dict()
@@ -39,28 +35,39 @@ def tokenize(text):
     return tokens
 
 
+# https://leons.im/posts/a-python-implementation-of-simhash-algorithm/
+def get_features(s):
+    width = 3
+    s = s.lower()
+    s = re.sub(r'[^\w]+', '', s)
+    return [s[i:i + width] for i in range(max(len(s) - width + 1, 1))]
+
+
 def scraper(url, resp):
     return extract_next_links(url, resp)
 
+
 def extract_next_links(url, resp):
-    if resp.status != 200 or url in crawled_links:  # url with status != 200 or is already crawled is excluded
+    if resp.status != 200 or resp.raw_response == None:  # url with status != 200 or no response is excluded
         bad_links.add(url)
         return list()       # return with an empty list() to not crawl this url
     
-    if (resp.raw_response == None):     # no response. Stop crawl this url
-        bad_links.add(url)
+    if url in crawled_links:    # url is already crawled
         return list()
 
+
+
     soup = BeautifulSoup(resp.raw_response.content, 'lxml') 
-    #parsed = urlparse(url)
     
-    words = tokenize(soup.get_text())
-    simhashObject = Simhash(words)            # for checking duplicated content
+
+
+    simhashObject = Simhash(get_features(soup.get_text()))            # for checking duplicated content
     
     if is_exact_dup(simhashObject):
         return list()
     
     if is_near_dup(simhashObject):
+        # bad_links.add(url) # might make checking for bad links easier
         return list()
 
     # A unique link (content is not duplicated) --> add to simhash_set()
@@ -74,7 +81,11 @@ def extract_next_links(url, resp):
             return list()
     else:
         bad_links.add(url)
+        return list()
+    
 
+
+    words = tokenize(soup.get_text())
 
     # Report - 2
     global longestPage, longestPageWordCount
@@ -90,6 +101,8 @@ def extract_next_links(url, resp):
                 allWords[word] = 0
             allWords[word] = allWords[word] + 1
     
+
+
     print("\tMain URL:", url)
 
     urls = set()    # set of scraped links from this url
@@ -97,20 +110,16 @@ def extract_next_links(url, resp):
     if resp.raw_response.content != None:
         # num_links = 0
         for link in soup.find_all('a'):
-            child = link.get('href')
-            
-            child = urldefrag(child)[0]
+            link = link.get('href')
+            newLink = urljoin(url, link)        # Transform relative to absolute url
+            newLink = urldefrag(newLink)[0]     # Defragment 
 
             # checking if the scraped link is valid, in crawled links/bad links
-            if child != None and is_valid(child) and child not in crawled_links and child not in bad_links:     
-                # if num_links <= max_links :                        
-                urls.add(child)
-                crawled_links.add(child)
-                # num_links++
-                # else 
-                #   break;
+            if newLink != None and is_valid(newLink) and newLink not in crawled_links and newLink not in bad_links:                      
+                urls.add(newLink)
+                crawled_links.add(newLink)
             else:
-                bad_links.add(child)
+                bad_links.add(newLink)
     print()
 
     return list(urls)
@@ -132,17 +141,19 @@ def is_valid(url):
         if parsed is None or parsed.hostname is None:
             return False
         
+
         if parsed.scheme not in set(["http", "https"]):
             return False
 
-        if not re.match('.*\.ics\.uci\.edu',  parsed.hostname)\
-            or not re.match('.*\.cs\.uci\.edu',  parsed.hostname) \
-            or not re.match('.*\.informatics\.uci\.edu',  parsed.hostname) \
-            or not re.match('.*\.stat\.uci\.edu',  parsed.hostname) \
-            or (parsed.hostname == 'today.uci.edu' \
-                and not re.match('department/information_computer_sciences(/.*)?', parsed.path)):
+        # if subdomains not belong to these domains. The url is not valid
+        if parsed.hostname == 'today.uci.edu':
+            if re.match('/department\/information_computer_sciences(\/.*)?', parsed.path) == None:
+                return False
+        elif re.match('.*\.ics\.uci\.edu',  parsed.hostname) == None \
+            and re.match('.*\.cs\.uci\.edu',  parsed.hostname) == None \
+            and re.match('.*\.informatics\.uci\.edu',  parsed.hostname) == None \
+            and re.match('.*\.stat\.uci\.edu',  parsed.hostname) == None:
             return False
-        
 
         # Report - 4
         if re.match('.*\.ics\.uci\.edu', parsed.hostname):
@@ -166,29 +177,15 @@ def is_valid(url):
             + r"|rm|smil|wmv|swf|wma|zip|rar|gz)$", parsed.path.lower())
 
     except TypeError:
-        # print ("TypeError for ", parsed)
-        # raise
         pass
 
 
 # check duplications
 def is_exact_dup(simhashObject):
-    if simhashObject.value in simhash_set:
-        return True
-
-    return False
+    return simhashObject.value in simhash_set
 
 
 def is_near_dup(simhashObject):
-    # Simhash Index
-    # # Need to store data in dict to use simhash index
-    # index = SimhashIndex([(k, v) for k, v in data.items()])
-    # # near_dup_threshold returns a list of keys in data that are near duplicates
-    # dups = index.get_near_dups(hashVal)
-    # if(len(dups) > near_dup_threshold):
-    #     return True
-
-
     # Distance
     for value in data.values():
         if value.distance(simhashObject) < near_dup_threshold:
