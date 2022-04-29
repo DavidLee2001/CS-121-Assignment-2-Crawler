@@ -47,3 +47,27 @@ if __name__ == "__main__":
     print(f"A total number of subdomains in the 'ics.uci.edu domain': {len(scraper.subdomains)}")
     for domain, urls in sorted(scraper.subdomains.items(), key=lambda item: item[0]):
         print(f'\t{domain}, {len(urls)}')
+
+
+
+    with open('report.txt', 'w') as file:
+        # Report - 1
+        file.write(f'Number of unique pages found: {len(scraper.crawled_links)}\n\n')
+    
+        # Report - 2
+        file.write(f'Longest page: {scraper.longestPage}\nWord count: {scraper.longestPageWordCount}\n\n')
+    
+        # Report - 3
+        file.write('50 most common words\n')
+        counter = 0
+        for word, count in sorted(scraper.allWords.items(), key=lambda item: -item[1]):
+            if counter >= 50:
+                break
+            counter += 1
+            file.write(f'\t{word} - {count}\n')
+        file.write('\n')
+    
+        # Report - 4
+        file.write(f"A total number of subdomains in the 'ics.uci.edu domain': {len(scraper.subdomains)}\n")
+        for domain, urls in sorted(scraper.subdomains.items(), key=lambda item: item[0]):
+            file.write(f'\t{domain}, {(urls)}\n')
