@@ -15,6 +15,9 @@ data = dict()
 # Report - 2
 longestPage = ''
 longestPageWordCount = 0
+longest = dict()
+longest['longestURL'] = ''
+longest['count'] = 0
 
 # Report - 3
 allWords = dict()
@@ -92,6 +95,9 @@ def extract_next_links(url, resp):
     if len(words) > longestPageWordCount:
         longestPage = url
         longestPageWordCount = len(words)
+    if len(words) > longest['count']:
+        longest["longestURL"] = url
+        longest['count'] = len(words)
     
     # Report - 3
     global allWords

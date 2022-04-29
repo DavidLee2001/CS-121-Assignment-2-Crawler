@@ -55,7 +55,10 @@ if __name__ == "__main__":
         file.write(f'Number of unique pages found: {len(scraper.crawled_links)}\n\n')
     
         # Report - 2
-        file.write(f'Longest page: {scraper.longestPage}\nWord count: {scraper.longestPageWordCount}\n\n')
+        file.write(f'Longest page: {scraper.longestPage}\nWord count: {scraper.longestPageWordCount}\n')
+        for key, value in scraper.longest.items():
+            file.write(f'{key}: {value}\n')
+        file.write('\n')
     
         # Report - 3
         file.write('50 most common words\n')
