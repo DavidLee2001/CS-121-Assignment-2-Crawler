@@ -31,7 +31,10 @@ if __name__ == "__main__":
     print(f'\n\n\nNumber of unique pages found: {len(scraper.crawled_links)}\n\n')
 
     # Report - 2
-    print(f'Longest page: {scraper.longestPage}\nWord count: {scraper.longestPageWordCount}\n\n')
+    print(f'Longest page: {scraper.longestPage}\nWord count: {scraper.longestPageWordCount}\n')
+    for key, value in scraper.longest.items():
+        print(f'{key}: {value}\n')
+    print('\n')
     
     # Report - 3
     print('50 most common words')
