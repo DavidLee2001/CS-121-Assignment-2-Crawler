@@ -158,8 +158,8 @@ def is_valid(url):
         # Report - 4
         if re.match('.*\.ics\.uci\.edu', parsed.hostname):
             if parsed.hostname not in subdomains:
-                subdomains[parsed.hostname] = 0
-            subdomains[parsed.hostname] = subdomains[parsed.hostname] + 1
+                subdomains[parsed.hostname] = set()
+            subdomains[parsed.hostname].add(url)
 
 
         #blocking URls with repeating directories & calanders
